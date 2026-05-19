@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   dagster-webserver:
+    container_name: bikestore_dagster_webserver
     build:
       context: ./orchestration
       dockerfile: Dockerfile
@@ -43,9 +44,10 @@ services:
       retries: 12
       start_period: 20s
     networks:
-      - erp_network
+      - bikestore_network
 
   dagster-daemon:
+    container_name: bikestore_dagster_daemon
     build:
       context: ./orchestration
       dockerfile: Dockerfile
@@ -82,9 +84,10 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - erp_network
+      - bikestore_network
 
   bsdp_pipeline:
+    container_name: bikestore_bsdp_pipeline
     build:
       context: ./orchestration
       dockerfile: Dockerfile
@@ -119,6 +122,7 @@ services:
       AWS_S3_FORCE_PATH_STYLE: "true"
       S3_ENDPOINT_URL: http://minio:9000
       LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
+      DBT_PROJECT_DIR: /opt/dagster/dbt_bsdp
       DBT_DUCKDB_PATH: /opt/dagster/dagster_home/storage/dbt_bsdp.duckdb
     volumes:
       - ./orchestration/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
@@ -137,9 +141,10 @@ services:
       retries: 12
       start_period: 20s
     networks:
-      - erp_network
+      - bikestore_network
 
   backend_storage:
+    container_name: bikestore_backend_storage
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
@@ -156,9 +161,10 @@ services:
       retries: 10
       start_period: 10s
     networks:
-      - erp_network
+      - bikestore_network
 
   minio:
+    container_name: bikestore_minio
     image: minio/minio:latest
     command:
       - server
@@ -181,9 +187,10 @@ services:
       retries: 12
       start_period: 10s
     networks:
-      - erp_network
+      - bikestore_network
 
   minio-init:
+    container_name: bikestore_minio_init
     image: minio/mc:latest
     entrypoint:
       - /bin/sh
@@ -203,11 +210,11 @@ services:
       - minio
     restart: "no"
     networks:
-      - erp_network
+      - bikestore_network
 
   cloudbeaver:
     image: dbeaver/cloudbeaver:latest
-    container_name: bsdp_cloudbeaver
+    container_name: bikestore_cloudbeaver
     env_file:
       - ${DAGSTER_SHARED_ENV_FILE:-.env}
     volumes:
@@ -215,10 +222,10 @@ services:
     ports:
       - "${CLOUDBEAVER_PORT:-8978}:8978"
     networks:
-      - erp_network
+      - bikestore_network
     restart: on-failure
 
 networks:
-  erp_network:
-    name: erp_network
+  bikestore_network:
+    name: bikestore_network
     driver: bridge

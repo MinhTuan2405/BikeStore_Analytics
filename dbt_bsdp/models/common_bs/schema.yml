@@ -1,0 +1,367 @@
+version: 2
+
+models:
+  # ─── Conformed Dimensions ────────────────────────────────────────────────────
+
+  - name: dim_customer
+    description: >
+      Conformed customer dimension (Type 1 — no history). Source: stg_supabase__customers.
+      Includes a missing-member row (dim_customer_sk = MD5('-1'), customer_id = -1) to
+      absorb fct_sales rows where no customer was recorded (guest/anonymous orders).
+    columns:
+      - name: dim_customer_sk
+        description: "Surrogate key — MD5 hash of customer_id. First column per EDM convention."
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Natural key from sales.customers. -1 for the missing-member row."
+        data_tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: "Trimmed first name. 'Unknown' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: last_name
+        description: "Trimmed last name. 'Unknown' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: full_name
+        description: "Concatenated first + last name. 'Unknown Customer' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: email
+        description: "Lowercased email address. Null for the missing-member row."
+      - name: phone
+        description: "Contact phone number. Null when not provided or for missing-member row."
+      - name: street
+        description: "Street address. Null when not provided or for missing-member row."
+      - name: city
+        description: "City. Null when not provided or for missing-member row."
+      - name: state
+        description: "Two-letter US state code, uppercased. Null when not provided or for missing-member row."
+      - name: zip_code
+        description: "ZIP / postal code. Null when not provided or for missing-member row."
+
+  - name: dim_product
+    description: >
+      Conformed product dimension enriched with brand and category names (Type 1 — no history).
+      Three-way join: stg_supabase__products + stg_supabase__brands + stg_supabase__categories.
+      Includes a missing-member row to absorb any unresolved product FKs in fact tables.
+    columns:
+      - name: dim_product_sk
+        description: "Surrogate key — MD5 hash of product_id."
+        data_tests:
+          - unique
+          - not_null
+      - name: product_id
+        description: "Natural key from production.products. -1 for the missing-member row."
+        data_tests:
+          - unique
+          - not_null
+      - name: product_name
+        description: "Trimmed product display name. 'Unknown Product' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: model_year
+        description: "Model year of the bicycle (e.g. 2022). Null for the missing-member row."
+      - name: list_price
+        description: >
+          Retail list price from the latest snapshot. Null for the missing-member row.
+          Note: fct_sales captures the price-at-order-time in its own list_price column,
+          which may differ from this current price.
+      - name: brand_id
+        description: "Natural key from production.brands. -1 for the missing-member row."
+        data_tests:
+          - not_null
+      - name: brand_name
+        description: "Brand display name joined from stg_supabase__brands. 'Unknown Brand' for missing-member."
+        data_tests:
+          - not_null
+      - name: category_id
+        description: "Natural key from production.categories. -1 for the missing-member row."
+        data_tests:
+          - not_null
+      - name: category_name
+        description: "Category display name joined from stg_supabase__categories. 'Unknown Category' for missing-member."
+        data_tests:
+          - not_null
+
+  - name: dim_store
+    description: >
+      Conformed store dimension (Type 1 — no history). Source: stg_supabase__stores.
+      Includes a missing-member row to absorb any unresolved store FKs in fact tables.
+    columns:
+      - name: dim_store_sk
+        description: "Surrogate key — MD5 hash of store_id."
+        data_tests:
+          - unique
+          - not_null
+      - name: store_id
+        description: "Natural key from sales.stores. -1 for the missing-member row."
+        data_tests:
+          - unique
+          - not_null
+      - name: store_name
+        description: "Store display name. 'Unknown Store' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: phone
+        description: "Store contact phone. Null when not provided or for missing-member row."
+      - name: email
+        description: "Store contact email. Null when not provided or for missing-member row."
+      - name: street
+        description: "Street address. Null when not provided or for missing-member row."
+      - name: city
+        description: "City. Null when not provided or for missing-member row."
+      - name: state
+        description: "Two-letter US state code, uppercased. Null when not provided or for missing-member row."
+      - name: zip_code
+        description: "ZIP / postal code. Null when not provided or for missing-member row."
+
+  - name: dim_staff
+    description: >
+      Conformed staff dimension (Type 1) with one level of manager hierarchy flattened via
+      a self-join on manager_id. manager_dim_staff_sk enables a single join back to dim_staff
+      to retrieve full manager attributes without a recursive query. Top-level staff (manager_id
+      is null) resolve manager_dim_staff_sk to the missing-member key MD5('-1').
+    columns:
+      - name: dim_staff_sk
+        description: "Surrogate key — MD5 hash of staff_id."
+        data_tests:
+          - unique
+          - not_null
+      - name: staff_id
+        description: "Natural key from sales.staffs. -1 for the missing-member row."
+        data_tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: "Trimmed first name. 'Unknown' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: last_name
+        description: "Trimmed last name. 'Unknown' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: full_name
+        description: "Concatenated first + last name. 'Unknown Staff' for the missing-member row."
+        data_tests:
+          - not_null
+      - name: email
+        description: "Lowercased email. Null for the missing-member row."
+      - name: phone
+        description: "Contact phone. Null when not provided or for missing-member row."
+      - name: is_active
+        description: "True when the staff member is currently active (source active = 1)."
+        data_tests:
+          - not_null
+      - name: store_id
+        description: "Store the staff member is assigned to. -1 for the missing-member row."
+        data_tests:
+          - not_null
+      - name: manager_id
+        description: "Natural key of the direct manager (self-reference to staff_id). Null for top-level staff."
+      - name: manager_dim_staff_sk
+        description: >
+          Surrogate FK back to dim_staff identifying the direct manager. Resolves to
+          MD5('-1') (missing-member) when manager_id is null (top-level staff or missing-member row).
+        data_tests:
+          - not_null
+      - name: manager_full_name
+        description: "Full name of the direct manager, flattened from the self-join. Null for the missing-member row."
+
+  - name: dim_date
+    description: >
+      Conformed date dimension generated from a DuckDB generate_series time spine covering
+      2015-01-01 to 2034-12-31 (7305 calendar days). Shared by fct_sales (keyed on order_date)
+      and fct_inventory (keyed on snapshot_date). Includes a missing-member row
+      (dim_date_sk = MD5('-1'), date_day = null) to absorb any unresolved date FKs.
+    columns:
+      - name: dim_date_sk
+        description: "Surrogate key — MD5 hash of date_day cast to varchar (YYYY-MM-DD)."
+        data_tests:
+          - unique
+          - not_null
+      - name: date_day
+        description: "Natural key — the calendar date. Null only for the missing-member row."
+      - name: year_number
+        description: "Calendar year extracted from date_day (e.g. 2023)."
+      - name: quarter_number
+        description: "Calendar quarter (1–4)."
+      - name: quarter_label
+        description: "Quarter label string, e.g. 'Q1', 'Q4'."
+      - name: month_number
+        description: "Calendar month (1–12)."
+      - name: month_name
+        description: "Full month name (e.g. 'January', 'December') via DuckDB strftime '%B'."
+      - name: week_of_year
+        description: "ISO week number within the year (1–53) via extract(week from date_day)."
+      - name: day_of_month
+        description: "Day of the month (1–31)."
+      - name: day_of_week
+        description: "Day of week as integer. DuckDB convention: 0 = Sunday, 6 = Saturday."
+      - name: day_name
+        description: "Full day name (e.g. 'Monday', 'Sunday') via DuckDB strftime '%A'."
+      - name: is_weekend
+        description: "True when day_of_week is 0 (Sunday) or 6 (Saturday)."
+
+  # ─── Facts ───────────────────────────────────────────────────────────────────
+
+  - name: fct_sales
+    description: >
+      Atomic sales fact table at order-line-item grain. One row per (order_id, item_id).
+      Built by joining stg_supabase__order_items to stg_supabase__orders.
+      Conforms to dim_date (on order_date), dim_customer, dim_product, dim_store, dim_staff.
+      customer_id is nullable in the source; null FKs resolve to the missing-member surrogate key.
+    columns:
+      - name: sales_pk
+        description: "Primary key — MD5 hash of (order_id, item_id)."
+        data_tests:
+          - unique
+          - not_null
+      - name: dim_date_sk
+        description: "FK to dim_date keyed on order_date."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: dim_date_sk
+      - name: dim_customer_sk
+        description: "FK to dim_customer. Resolves to MD5('-1') for guest/anonymous orders where customer_id is null."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: dim_customer_sk
+      - name: dim_product_sk
+        description: "FK to dim_product for the product on this line item."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: dim_product_sk
+      - name: dim_store_sk
+        description: "FK to dim_store — the store that accepted the order."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_store')
+                field: dim_store_sk
+      - name: dim_staff_sk
+        description: "FK to dim_staff — the staff member who processed the order."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_staff')
+                field: dim_staff_sk
+      - name: order_id
+        description: "Degenerate dimension — order header identifier from sales.orders."
+        data_tests:
+          - not_null
+      - name: item_id
+        description: "Degenerate dimension — line-item sequence number within the order (1-based)."
+        data_tests:
+          - not_null
+      - name: order_status
+        description: "Degenerate dimension — numeric order status (1=Pending, 2=Processing, 3=Rejected, 4=Completed)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+      - name: order_status_label
+        description: "Degenerate dimension — human-readable label for order_status."
+        data_tests:
+          - not_null
+      - name: is_shipped
+        description: "Degenerate dimension — true when the order has a non-null shipped_date."
+        data_tests:
+          - not_null
+      - name: order_date
+        description: "Date the order was placed; the basis for dim_date_sk."
+        data_tests:
+          - not_null
+      - name: required_date
+        description: "Delivery deadline requested by the customer."
+      - name: shipped_date
+        description: "Actual shipment date. Null when the order has not yet been shipped."
+      - name: quantity
+        description: "Measure — units ordered on this line item."
+        data_tests:
+          - not_null
+      - name: list_price
+        description: "Measure — unit price captured at order time. May differ from dim_product.list_price if pricing changed."
+        data_tests:
+          - not_null
+      - name: discount
+        description: "Measure — fractional discount applied (0.0 = no discount, 1.0 = free)."
+        data_tests:
+          - not_null
+      - name: line_total
+        description: "Measure — revenue for this line item: round(quantity * list_price * (1 - discount), 2)."
+        data_tests:
+          - not_null
+
+  - name: fct_inventory
+    description: >
+      Atomic inventory snapshot fact at store × product grain. One row per (store_id, product_id)
+      from the latest full-load ingestion run. dim_date_sk is keyed on the ingestion snapshot_date,
+      making it possible to track inventory levels over time as new snapshots are loaded.
+      inventory_value is computed as quantity × dim_product.list_price (current price).
+    columns:
+      - name: inventory_pk
+        description: "Primary key — MD5 hash of (store_id, product_id)."
+        data_tests:
+          - unique
+          - not_null
+      - name: dim_date_sk
+        description: "FK to dim_date keyed on snapshot_date — the ingestion date of this inventory record."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: dim_date_sk
+      - name: dim_store_sk
+        description: "FK to dim_store — the store holding this inventory."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_store')
+                field: dim_store_sk
+      - name: dim_product_sk
+        description: "FK to dim_product — the product being stocked."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: dim_product_sk
+      - name: store_id
+        description: "Degenerate dimension — store natural key (retained for direct filtering without a join)."
+        data_tests:
+          - not_null
+      - name: product_id
+        description: "Degenerate dimension — product natural key (retained for direct filtering without a join)."
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: "Date of the full-load ingestion run that produced this record; FK basis for dim_date_sk."
+        data_tests:
+          - not_null
+      - name: quantity
+        description: "Measure — units on hand at this store for this product. Null in source is coalesced to 0."
+        data_tests:
+          - not_null
+      - name: inventory_value
+        description: "Measure — estimated inventory value: round(quantity * stg_supabase__products.list_price, 2)."
+        data_tests:
+          - not_null

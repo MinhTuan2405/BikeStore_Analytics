@@ -18,12 +18,6 @@
         "source": "github",
         "repo": "anthropics/claude-plugins-official"
       }
-    },
-    "dlthub-ai-workbench": {
-      "source": {
-        "source": "github",
-        "repo": "dlt-hub/dlthub-ai-workbench"
-      }
     }
   },
   "enabledPlugins": {
@@ -32,16 +26,7 @@
     "dbt@dbt-agent-marketplace": true,
     "snowflake-cortex-code@claude-plugins-official": true,
     "dbt-migration@dbt-agent-marketplace": true,
-    "dbt-extras@dbt-agent-marketplace": true,
-    "init@dlthub-ai-workbench": false,
-    "bootstrap@dlthub-ai-workbench": false,
-    "sql-database-pipeline@dlthub-ai-workbench": false,
-    "filesystem-pipeline@dlthub-ai-workbench": false,
-    "rest-api-pipeline@dlthub-ai-workbench": false,
-    "data-exploration@dlthub-ai-workbench": false,
-    "transformations@dlthub-ai-workbench": false,
-    "data-quality@dlthub-ai-workbench": false,
-    "dlthub-runtime@dlthub-ai-workbench": false
+    "dbt-extras@dbt-agent-marketplace": true
   },
   "permissions": {
     "allow": [

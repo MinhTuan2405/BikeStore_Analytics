@@ -1,0 +1,55 @@
+version: 2
+
+sources:
+  - name: supabase_sales
+    schema: main
+    description: "Raw full-load snapshots from Supabase sales schema, stored as Hive-partitioned Parquet in MinIO."
+    tables:
+      - name: customers
+        description: "Customer records from sales.customers."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/sales/customers/**/*.parquet', hive_partitioning=true)"
+
+      - name: order_items
+        description: "Line items from sales.order_items."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/sales/order_items/**/*.parquet', hive_partitioning=true)"
+
+      - name: orders
+        description: "Order headers from sales.orders."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/sales/orders/**/*.parquet', hive_partitioning=true)"
+
+      - name: staffs
+        description: "Staff records from sales.staffs."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/sales/staffs/**/*.parquet', hive_partitioning=true)"
+
+      - name: stores
+        description: "Store records from sales.stores."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/sales/stores/**/*.parquet', hive_partitioning=true)"
+
+  - name: supabase_production
+    schema: main
+    description: "Raw full-load snapshots from Supabase production schema, stored as Hive-partitioned Parquet in MinIO."
+    tables:
+      - name: brands
+        description: "Brand records from production.brands."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/production/brands/**/*.parquet', hive_partitioning=true)"
+
+      - name: categories
+        description: "Category records from production.categories."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/production/categories/**/*.parquet', hive_partitioning=true)"
+
+      - name: products
+        description: "Product records from production.products."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/production/products/**/*.parquet', hive_partitioning=true)"
+
+      - name: stocks
+        description: "Stock level records from production.stocks."
+        meta:
+          external_location: "read_parquet('s3://lakehouse/raw/supabase/production/stocks/**/*.parquet', hive_partitioning=true)"

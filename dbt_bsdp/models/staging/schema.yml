@@ -1,0 +1,279 @@
+version: 2
+
+models:
+  - name: stg_supabase__customers
+    description: >
+      Cleaned customer records from the latest full-load snapshot (sales.customers).
+      Whitespace trimmed on all string fields; email lowercased; empty strings normalised
+      to null. One row per customer_id.
+    columns:
+      - name: customer_id
+        description: "Natural key from sales.customers. Unique per source schema."
+        data_tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: "Trimmed first name."
+        data_tests:
+          - not_null
+      - name: last_name
+        description: "Trimmed last name."
+        data_tests:
+          - not_null
+      - name: full_name
+        description: "Concatenated trim(first_name) || ' ' || trim(last_name)."
+        data_tests:
+          - not_null
+      - name: email
+        description: "Lowercased, trimmed email address."
+        data_tests:
+          - not_null
+      - name: phone
+        description: "Contact phone number. Null when blank in source."
+      - name: street
+        description: "Street address line. Null when blank in source."
+      - name: city
+        description: "City. Null when blank in source."
+      - name: state
+        description: "Two-letter US state code, uppercased. Null when blank in source."
+      - name: zip_code
+        description: "ZIP / postal code. Null when blank in source."
+
+  - name: stg_supabase__orders
+    description: >
+      Order headers from the latest full-load snapshot (sales.orders).
+      Adds a human-readable order_status_label and a boolean is_shipped flag.
+      One row per order_id.
+    columns:
+      - name: order_id
+        description: "Natural key from sales.orders."
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: >
+          FK to sales.customers. Nullable — the source schema allows guest/anonymous
+          orders where no customer record is linked.
+      - name: order_status
+        description: "Numeric status code: 1=Pending, 2=Processing, 3=Rejected, 4=Completed."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+      - name: order_status_label
+        description: "Human-readable label derived from order_status via CASE expression."
+        data_tests:
+          - not_null
+      - name: order_date
+        description: "Date the order was placed. NOT NULL in the source schema."
+        data_tests:
+          - not_null
+      - name: required_date
+        description: "Delivery deadline requested by the customer."
+      - name: shipped_date
+        description: "Date the order was physically dispatched. Null when not yet shipped."
+      - name: is_shipped
+        description: "True when shipped_date is non-null, false otherwise."
+        data_tests:
+          - not_null
+      - name: store_id
+        description: "FK to sales.stores — the store that accepted the order."
+        data_tests:
+          - not_null
+      - name: staff_id
+        description: "FK to sales.staffs — the staff member who processed the order."
+        data_tests:
+          - not_null
+
+  - name: stg_supabase__order_items
+    description: >
+      Order line items from the latest full-load snapshot (sales.order_items).
+      Adds a pre-computed line_total (quantity × list_price × (1 − discount)).
+      Grain: one row per (order_id, item_id).
+    columns:
+      - name: order_id
+        description: "Part of composite natural key. FK to stg_supabase__orders."
+        data_tests:
+          - not_null
+      - name: item_id
+        description: "Sequence number of the line item within the order (1-based)."
+        data_tests:
+          - not_null
+      - name: product_id
+        description: "FK to stg_supabase__products."
+        data_tests:
+          - not_null
+      - name: quantity
+        description: "Units ordered on this line item."
+        data_tests:
+          - not_null
+      - name: list_price
+        description: >
+          Unit price captured at order time. May differ from the current product list_price
+          if pricing changed after the order was placed.
+        data_tests:
+          - not_null
+      - name: discount
+        description: "Fractional discount applied to this line item (0.0 = no discount, 1.0 = free)."
+        data_tests:
+          - not_null
+      - name: line_total
+        description: "Pre-computed revenue for this line: round(quantity * list_price * (1 - discount), 2)."
+        data_tests:
+          - not_null
+
+  - name: stg_supabase__staffs
+    description: >
+      Staff records from the latest full-load snapshot (sales.staffs).
+      The source active SMALLINT (1/0) is cast to a boolean is_active.
+      Whitespace trimmed; email lowercased. One row per staff_id.
+    columns:
+      - name: staff_id
+        description: "Natural key from sales.staffs."
+        data_tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: "Trimmed first name."
+        data_tests:
+          - not_null
+      - name: last_name
+        description: "Trimmed last name."
+        data_tests:
+          - not_null
+      - name: full_name
+        description: "Concatenated trim(first_name) || ' ' || trim(last_name)."
+        data_tests:
+          - not_null
+      - name: email
+        description: "Lowercased, trimmed email. Unique per source schema constraint."
+        data_tests:
+          - unique
+          - not_null
+      - name: phone
+        description: "Contact phone number. Null when blank in source."
+      - name: is_active
+        description: "True when active = 1 in the source (SMALLINT → boolean cast)."
+        data_tests:
+          - not_null
+      - name: store_id
+        description: "FK to sales.stores — the store this staff member is assigned to."
+        data_tests:
+          - not_null
+      - name: manager_id
+        description: "Self-referencing FK to staff_id identifying the direct manager. Null for top-level staff."
+
+  - name: stg_supabase__stores
+    description: >
+      Store records from the latest full-load snapshot (sales.stores).
+      Whitespace trimmed on all string fields; empty strings normalised to null.
+      State code uppercased. One row per store_id.
+    columns:
+      - name: store_id
+        description: "Natural key from sales.stores."
+        data_tests:
+          - unique
+          - not_null
+      - name: store_name
+        description: "Trimmed store display name."
+        data_tests:
+          - not_null
+      - name: phone
+        description: "Store contact phone. Null when blank in source."
+      - name: email
+        description: "Store contact email. Null when blank in source."
+      - name: street
+        description: "Street address. Null when blank in source."
+      - name: city
+        description: "City. Null when blank in source."
+      - name: state
+        description: "Two-letter US state code, uppercased. Null when blank in source."
+      - name: zip_code
+        description: "ZIP / postal code. Null when blank in source."
+
+  - name: stg_supabase__brands
+    description: >
+      Brand records from the latest full-load snapshot (production.brands).
+      brand_name trimmed. One row per brand_id.
+    columns:
+      - name: brand_id
+        description: "Natural key from production.brands."
+        data_tests:
+          - unique
+          - not_null
+      - name: brand_name
+        description: "Trimmed brand display name (e.g. Trek, Surly, Electra)."
+        data_tests:
+          - not_null
+
+  - name: stg_supabase__categories
+    description: >
+      Product category records from the latest full-load snapshot (production.categories).
+      category_name trimmed. One row per category_id.
+    columns:
+      - name: category_id
+        description: "Natural key from production.categories."
+        data_tests:
+          - unique
+          - not_null
+      - name: category_name
+        description: "Trimmed category display name (e.g. Mountain Bikes, Road Bikes)."
+        data_tests:
+          - not_null
+
+  - name: stg_supabase__products
+    description: >
+      Product records from the latest full-load snapshot (production.products).
+      product_name trimmed. One row per product_id.
+    columns:
+      - name: product_id
+        description: "Natural key from production.products."
+        data_tests:
+          - unique
+          - not_null
+      - name: product_name
+        description: "Trimmed product display name."
+        data_tests:
+          - not_null
+      - name: brand_id
+        description: "FK to stg_supabase__brands."
+        data_tests:
+          - not_null
+      - name: category_id
+        description: "FK to stg_supabase__categories."
+        data_tests:
+          - not_null
+      - name: model_year
+        description: "Model year of the bicycle (e.g. 2022). Helps distinguish current vs legacy SKUs."
+        data_tests:
+          - not_null
+      - name: list_price
+        description: "Current retail list price in USD."
+        data_tests:
+          - not_null
+
+  - name: stg_supabase__stocks
+    description: >
+      Store-level inventory counts from the latest full-load snapshot (production.stocks).
+      quantity null-coalesced to 0. ingestion_date Hive partition exposed as snapshot_date.
+      Grain: one row per (store_id, product_id) at the latest snapshot.
+    columns:
+      - name: store_id
+        description: "Part of composite natural key. FK to stg_supabase__stores."
+        data_tests:
+          - not_null
+      - name: product_id
+        description: "Part of composite natural key. FK to stg_supabase__products."
+        data_tests:
+          - not_null
+      - name: quantity
+        description: "Units on hand at this store. Null in source is coalesced to 0."
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: >
+          Date of the full-load ingestion run that produced this record (derived from the
+          Hive partition ingestion_date). Used as the FK basis for dim_date_sk in fct_inventory.
+        data_tests:
+          - not_null

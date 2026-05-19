@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
+docs/
+
 # Local environment files
 .envrc
 

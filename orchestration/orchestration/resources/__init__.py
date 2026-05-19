@@ -1,7 +1,6 @@
 import os
 
 from orchestration.resources.dbt_resource import dbt_resource
-from orchestration.resources.dummyjson_resource import DummyjsonResource
 from orchestration.resources.supabase_resource import SupabaseResource
 
 
@@ -16,21 +15,13 @@ def _supabase_resource() -> SupabaseResource:
     )
 
 
-def _dummyjson_resource() -> DummyjsonResource:
-    return DummyjsonResource(
-        base_url=os.environ.get("DUMMYJSON_BASE_URL", "https://dummyjson.com"),
-    )
-
-
 RESOURCES: dict[str, dict] = {
     "local": {
         "dbt": dbt_resource,
         "supabase": _supabase_resource(),
-        "dummyjson": _dummyjson_resource(),
     },
     "cloud": {
         "dbt": dbt_resource,
         "supabase": _supabase_resource(),
-        "dummyjson": _dummyjson_resource(),
     },
 }

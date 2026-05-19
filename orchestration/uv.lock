@@ -1881,7 +1881,6 @@ dependencies = [
     { name = "pandas", version = "3.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
-    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -1901,7 +1900,6 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0" },
     { name = "psycopg", extras = ["binary"] },
     { name = "pyarrow", specifier = ">=14.0" },
-    { name = "requests", specifier = ">=2.28" },
 ]
 
 [package.metadata.requires-dev]
