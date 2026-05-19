@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "dagster": {
+      "source": {
+        "source": "github",
+        "repo": "dagster-io/skills"
+      }
+    },
+    "dbt-agent-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "dbt-labs/dbt-agent-skills"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "dlthub-ai-workbench": {
+      "source": {
+        "source": "github",
+        "repo": "dlt-hub/dlthub-ai-workbench"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "dagster-expert@dagster": true,
+    "dignified-python@dagster": true,
+    "dbt@dbt-agent-marketplace": true,
+    "snowflake-cortex-code@claude-plugins-official": true,
+    "dbt-migration@dbt-agent-marketplace": true,
+    "dbt-extras@dbt-agent-marketplace": true,
+    "init@dlthub-ai-workbench": false,
+    "bootstrap@dlthub-ai-workbench": false,
+    "sql-database-pipeline@dlthub-ai-workbench": false,
+    "filesystem-pipeline@dlthub-ai-workbench": false,
+    "rest-api-pipeline@dlthub-ai-workbench": false,
+    "data-exploration@dlthub-ai-workbench": false,
+    "transformations@dlthub-ai-workbench": false,
+    "data-quality@dlthub-ai-workbench": false,
+    "dlthub-runtime@dlthub-ai-workbench": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(docker compose:*)",
+      "Bash(docker:*)",
+      "Bash(uv:*)",
+      "Bash(uvx:*)",
+      "Bash(dbt:*)",
+      "Bash(dg:*)",
+      "Bash(dagster:*)",
+      "Bash(mc:*)",
+      "Bash(psql:*)",
+      "Bash(snow:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/sessionstart_ensure_clis.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/posttooluse_remind_dagster_layout.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

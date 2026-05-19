@@ -1,0 +1,28 @@
+[0m14:12:32.504117 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F37695A450>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F3779D4F90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F3779D4890>]}
+
+
+============================== 14:12:32.650745 | 1c6d7d3f-4db8-4fb8-be07-6511c918780b ==============================
+[0m14:12:32.650745 [info ] [MainThread]: Running with dbt=1.11.9
+[0m14:12:32.652277 [debug] [MainThread]: running dbt with arguments {'static_parser': 'True', 'no_print': 'None', 'version_check': 'True', 'target_path': 'None', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'printer_width': '80', 'write_json': 'True', 'empty': 'None', 'log_cache_events': 'False', 'introspect': 'True', 'cache_selected_only': 'False', 'fail_fast': 'False', 'debug': 'False', 'log_format': 'default', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'quiet': 'False', 'warn_error': 'None', 'profiles_dir': 'C:\\Users\\23521\\.dbt', 'use_colors': 'True', 'invocation_command': 'dbt ', 'indirect_selection': 'eager', 'use_experimental_parser': 'False', 'log_path': 'logs'}
+[0m14:12:32.776264 [info ] [MainThread]: Creating dbt configuration folder at C:\Users\23521\.dbt
+[0m14:12:32.784615 [debug] [MainThread]: Starter project path: D:\WorkSpace\HIPTECH\CORSAIR\bsdp\.venv\Lib\site-packages\dbt\include\starter_project
+[0m14:12:32.873774 [info ] [MainThread]: 
+Your new dbt project "dbt_bsdp" was created!
+
+For more information on how to configure the profiles.yml file,
+please consult the dbt documentation here:
+
+  https://docs.getdbt.com/docs/configure-your-profile
+
+One more thing:
+
+Need help? Don't hesitate to reach out to us via GitHub issues or on Slack:
+
+  https://community.getdbt.com/
+
+Happy modeling!
+
+[0m14:12:32.879757 [debug] [MainThread]: Command `cli init` succeeded at 14:12:32.879161 after 0.49 seconds
+[0m14:12:32.881498 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F37699BDD0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F375A98BD0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x000001F377A02390>]}
+[0m14:12:32.883755 [debug] [MainThread]: Flushing usage events
+[0m14:12:33.938821 [debug] [MainThread]: An error was encountered while trying to flush usage events

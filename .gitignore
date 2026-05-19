@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local environment files
+.envrc
+
+# Claude Code local settings (machine-specific overrides)
+.claude/settings.local.json
+
+# Local Docker runtime data
+data/volume/

@@ -1,0 +1,224 @@
+version: "3.8"
+
+services:
+  dagster-webserver:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    image: ingestion-testing-orchestration:local
+    command:
+      - dagster-webserver
+      - -h
+      - 0.0.0.0
+      - -p
+      - "3000"
+      - -w
+      - workspace.yaml
+    env_file:
+      - ${DAGSTER_SHARED_ENV_FILE:-.env}
+      - ${DAGSTER_ORCHESTRATION_ENV_FILE:-./orchestration/.env}
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_POSTGRES_HOST: backend_storage
+      DAGSTER_POSTGRES_PORT: ${DAGSTER_POSTGRES_PORT:-5432}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./orchestration/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./orchestration/workspace.yaml:/opt/dagster/app/workspace.yaml:ro
+      - ./data/volume/dagster/storage:/opt/dagster/dagster_home/storage
+      - ./data/volume/dagster/compute_logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      - backend_storage
+      - minio
+      - minio-init
+      - bsdp_pipeline
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 3000), 3).close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - erp_network
+
+  dagster-daemon:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    image: ingestion-testing-orchestration:local
+    command:
+      - dagster-daemon
+      - run
+      - -w
+      - workspace.yaml
+    env_file:
+      - ${DAGSTER_SHARED_ENV_FILE:-.env}
+      - ${DAGSTER_ORCHESTRATION_ENV_FILE:-./orchestration/.env}
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_POSTGRES_HOST: backend_storage
+      DAGSTER_POSTGRES_PORT: ${DAGSTER_POSTGRES_PORT:-5432}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+    volumes:
+      - ./orchestration/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./orchestration/workspace.yaml:/opt/dagster/app/workspace.yaml:ro
+      - ./data/volume/dagster/storage:/opt/dagster/dagster_home/storage
+      - ./data/volume/dagster/compute_logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      - backend_storage
+      - minio
+      - minio-init
+      - bsdp_pipeline
+    healthcheck:
+      test: ["CMD-SHELL", "dagster instance info >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - erp_network
+
+  bsdp_pipeline:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    image: ingestion-testing-orchestration:local
+    command:
+      - dagster
+      - code-server
+      - start
+      - -h
+      - 0.0.0.0
+      - -p
+      - "4000"
+      - -m
+      - orchestration.definitions
+    env_file:
+      - ${DAGSTER_SHARED_ENV_FILE:-.env}
+      - ${DAGSTER_ORCHESTRATION_ENV_FILE:-./orchestration/.env}
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_POSTGRES_HOST: backend_storage
+      DAGSTER_POSTGRES_PORT: ${DAGSTER_POSTGRES_PORT:-5432}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      S3_ENDPOINT_URL: http://minio:9000
+      LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
+      DBT_DUCKDB_PATH: /opt/dagster/dagster_home/storage/dbt_bsdp.duckdb
+    volumes:
+      - ./orchestration/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./orchestration/orchestration:/opt/dagster/app/orchestration:ro
+      - ./dbt_bsdp:/opt/dagster/dbt_bsdp
+      - ./data/volume/dagster/storage:/opt/dagster/dagster_home/storage
+      - ./data/volume/dagster/compute_logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      - backend_storage
+      - minio
+      - minio-init
+    healthcheck:
+      test: ["CMD-SHELL", "dagster api grpc-health-check -p 4000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - erp_network
+
+  backend_storage:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster}
+      POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+    ports:
+      - "${DAGSTER_POSTGRES_PORT_ON_HOST:-5432}:5432"
+    volumes:
+      - ./data/volume/backend_storage:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - erp_network
+
+  minio:
+    image: minio/minio:latest
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_REGION_NAME: ${AWS_DEFAULT_REGION:-us-east-1}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/volume/minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - erp_network
+
+  minio-init:
+    image: minio/mc:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        set -e
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$${LAKEHOUSE_BUCKET}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
+    depends_on:
+      - minio
+    restart: "no"
+    networks:
+      - erp_network
+
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: bsdp_cloudbeaver
+    env_file:
+      - ${DAGSTER_SHARED_ENV_FILE:-.env}
+    volumes:
+      - ./data/volume/cloudbeaver:/opt/cloudbeaver/workspace
+    ports:
+      - "${CLOUDBEAVER_PORT:-8978}:8978"
+    networks:
+      - erp_network
+    restart: on-failure
+
+networks:
+  erp_network:
+    name: erp_network
+    driver: bridge

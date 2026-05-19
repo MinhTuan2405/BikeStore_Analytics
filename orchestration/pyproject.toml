@@ -1,0 +1,38 @@
+[project]
+name = "orchestration"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "boto3",
+    "dagster==1.13.4",
+    "dagster-dbt==0.29.4",
+    "dagster-postgres==0.29.4",
+    "dbt-duckdb>=1.9.0",
+    "psycopg[binary]",
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "requests>=2.28",
+]
+
+[dependency-groups]
+dev = [
+    "dagster-webserver",
+    "dagster-dg-cli",
+    "pytest",
+]
+
+[build-system]
+requires = ["hatchling>=1.19.0"]
+build-backend = "hatchling.build"
+
+[tool.dagster]
+module_name = "orchestration.definitions"
+code_location_name = "orchestration"
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "orchestration"
