@@ -1,102 +1,251 @@
-# Ingestion Testing
+# BikeStore Analyst Data Platform (BSDP)
 
-## Local Dagster Stack
+A local analytics engineering platform that ingests BikeStore transactional data from Supabase PostgreSQL, stores it in a MinIO lakehouse, and transforms it into a Kimball-style star schema using dbt + DuckDB — all orchestrated by Dagster and running entirely in Docker.
 
-The root `docker-compose.yml` runs Dagster, PostgreSQL for Dagster's backend storage, MinIO as an S3-compatible lakehouse target, and CloudBeaver as an optional SQL client. dbt uses DuckDB in-process for local execution.
+## Author
 
-Start the stack with the legacy `docker-compose` CLI or the newer plugin:
+**mnhtndev** — tuannhm@hiptechvn.com
+
+---
+
+## What This Project Does
+
+The platform covers the full data engineering lifecycle for a fictional multi-store bicycle retailer:
+
+1. **Ingest** — Dagster assets perform full-load extractions from a Supabase PostgreSQL source (9 tables across `sales` and `production` schemas) and write Hive-partitioned Parquet files to MinIO under `s3://lakehouse/raw/`.
+
+2. **Transform** — dbt (backed by DuckDB + httpfs) reads those raw Parquet files and produces two transformation layers:
+   - **Staging** (`s3://lakehouse/staging/`) — 9 `stg_supabase__*` models that clean, cast, and normalise raw records. Each model filters to the latest ingestion partition via the `latest_full_load` macro to avoid duplicates from the full-load strategy.
+   - **Conformed warehouse** (`s3://lakehouse/common_bs/`) — 4 conformed dimensions, a date spine, and 2 atomic fact tables following Kimball/EDM conventions.
+
+3. **Test** — 120 dbt schema tests (unique, not_null, accepted_values, relationships) run after every build to enforce data quality at all layers.
+
+4. **Orchestrate** — Dagster materialises every dbt model as a software-defined asset, groups them under `BikeStore_Analytics`, and exposes lineage in the Dagster UI.
+
+### Star Schema (common_bs layer)
+
+```
+                    dim_date
+                       │
+dim_customer ──── fct_sales ──── dim_product
+                       │
+                    dim_store
+                       │
+                    dim_staff
+                    (manager self-join)
+
+dim_store ──── fct_inventory ──── dim_product
+                    │
+                 dim_date
+```
+
+| Model | Grain | Key facts |
+|-------|-------|-----------|
+| `fct_sales` | order line item | line_total, quantity, discount |
+| `fct_inventory` | store × product snapshot | quantity, inventory_value |
+| `dim_customer` | customer | Type 1, missing-member row |
+| `dim_product` | product | enriched with brand + category |
+| `dim_store` | store | Type 1, missing-member row |
+| `dim_staff` | staff member | manager hierarchy flattened via self-join |
+| `dim_date` | calendar day | spine 2015-01-01 → 2034-12-31 |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Docker Compose stack                │
+│                                                      │
+│  ┌──────────────┐   gRPC    ┌──────────────────────┐│
+│  │ dagster-      │◄────────►│ bsdp_pipeline        ││
+│  │ webserver     │          │ (Dagster code server) ││
+│  │ :3000         │          │ :4000                 ││
+│  └──────────────┘           │  - Dagster assets     ││
+│  ┌──────────────┐           │  - dbt build          ││
+│  │ dagster-      │◄────────►│  - DuckDB + httpfs    ││
+│  │ daemon        │          └──────────────────────┘│
+│  └──────────────┘                    │               │
+│                                      │ S3 API        │
+│  ┌──────────────┐           ┌────────▼─────────────┐│
+│  │ backend_      │           │ MinIO                ││
+│  │ storage       │           │ :9000 (API)          ││
+│  │ (PostgreSQL)  │           │ :9001 (console)      ││
+│  │ :5432         │           │                      ││
+│  └──────────────┘           │  raw/      (Bronze)  ││
+│                              │  staging/  (Silver)  ││
+│  ┌──────────────┐           │  common_bs/(Gold)    ││
+│  │ CloudBeaver  │           └──────────────────────┘│
+│  │ :8978        │                                    │
+│  └──────────────┘                                    │
+└─────────────────────────────────────────────────────┘
+
+Source: Supabase PostgreSQL (external)
+  └── sales:      customers, orders, order_items, staffs, stores
+  └── production: brands, categories, products, stocks
+```
+
+### Repository layout
+
+```
+BikeStoreAnalyst/
+├── docker-compose.yml          # Full local stack
+├── .env.example                # Shared environment variables
+├── dbt_bsdp/                   # dbt project (DuckDB adapter)
+│   ├── profiles.yml            # DuckDB + MinIO S3 connection
+│   ├── dbt_project.yml
+│   ├── packages.yml            # dbt_utils
+│   ├── macros/
+│   │   ├── latest_full_load.sql   # Filters to max(ingestion_date)
+│   │   └── get_keyed_nulls.sql    # Null FK → missing-member SK
+│   └── models/
+│       ├── source/             # Bronze — external MinIO declarations
+│       │   └── sources.yml
+│       ├── staging/            # Silver — 9 stg_supabase__* models
+│       └── common_bs/          # Gold  — 4 dims + dim_date + 2 facts
+└── orchestration/              # Dagster project
+    ├── Dockerfile
+    ├── pyproject.toml          # dagster, dagster-dbt, dbt-duckdb
+    ├── workspace.yaml
+    ├── dagster.yaml
+    └── src/orchestration/
+        ├── definitions.py
+        └── defs/
+            ├── assets/dbt/     # dbt_bsdp_assets (DbtCliResource)
+            └── resources/      # DbtProject, DbtCliResource
+```
+
+### Technology stack
+
+| Layer | Technology |
+|-------|-----------|
+| Orchestration | Dagster 1.13 |
+| Transformation | dbt-core 1.11 + dbt-duckdb |
+| Query engine | DuckDB (in-process, httpfs extension) |
+| Lakehouse storage | MinIO (S3-compatible) |
+| Serialisation | Apache Parquet (via dbt external materialization) |
+| Dagster backend | PostgreSQL 16 |
+| SQL client | CloudBeaver |
+| Package manager | uv |
+| Runtime | Docker Compose |
+
+---
+
+## Installation
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Compose plugin)
+- A Supabase PostgreSQL connection string for the source database
+- Git
+
+### 1. Clone the repository
 
 ```bash
-docker-compose up --build
-# or
+git clone <repo-url>
+cd BikeStoreAnalyst
+```
+
+### 2. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in your Supabase connection details:
+
+```bash
+DATASOURCE_HOST=<your-supabase-host>
+DATASOURCE_USER=<your-supabase-user>
+DATASOURCE_PASSWORD=<your-supabase-password>
+```
+
+All other defaults (`minioadmin`, `dagster`, etc.) work as-is for local development.
+
+### 3. Start the stack
+
+```bash
 docker compose up --build
 ```
 
-Useful URLs:
+This builds the orchestration image, starts all services, and creates the MinIO `lakehouse` bucket automatically via the `minio-init` service.
 
-- Dagster UI: http://localhost:3000
-- Dagster PostgreSQL backend: `localhost:5432`
-- MinIO S3 endpoint from host: http://localhost:9000
-- MinIO console: http://localhost:9001
-- MinIO S3 endpoint from Dagster containers: `http://minio:9000`
-- CloudBeaver: http://localhost:8978
-- Docker network: `erp_network`
+### 4. Open the Dagster UI
 
-Runtime data is stored under `./data/volume/`:
+Navigate to **http://localhost:3000**. You should see the `BikeStore_Analytics` asset group with all ingestion and dbt assets.
 
-- Backend storage data: `./data/volume/backend_storage` (PostgreSQL data for Dagster DB)
-- MinIO data: `./data/volume/minio`
-- Dagster artifacts: `./data/volume/dagster/storage`
-- Dagster compute logs: `./data/volume/dagster/compute_logs`
+### 5. Materialise the pipeline
 
-The `bsdp_pipeline` container sets `DBT_DUCKDB_PATH=/opt/dagster/dagster_home/storage/dbt_bsdp.duckdb`, so dbt writes its local DuckDB database into the persisted Dagster storage volume. When running dbt directly from `dbt_bsdp/`, the profile defaults to `target/dev.duckdb`.
+In the Dagster UI, select all assets and click **Materialise all**. The run will:
+1. Extract all 9 source tables from Supabase → `s3://lakehouse/raw/`
+2. Run `dbt build` to produce staging and warehouse layers → `s3://lakehouse/staging/` and `s3://lakehouse/common_bs/`
+3. Execute all 120 dbt schema tests
 
-Default local credentials are defined in `.env.example`:
+### Useful URLs
 
-```bash
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
-LAKEHOUSE_BUCKET=lakehouse
-AWS_DEFAULT_REGION=us-east-1
-DAGSTER_POSTGRES_HOST=backend_storage
-DAGSTER_POSTGRES_PORT=5432
-DAGSTER_POSTGRES_PORT_ON_HOST=5432
-DAGSTER_POSTGRES_USER=dagster
-DAGSTER_POSTGRES_PASSWORD=dagster
-DAGSTER_POSTGRES_DB=dagster
-```
+| Service | URL |
+|---------|-----|
+| Dagster UI | http://localhost:3000 |
+| MinIO console | http://localhost:9001 |
+| MinIO S3 API | http://localhost:9000 |
+| CloudBeaver | http://localhost:8978 |
+| Dagster PostgreSQL | `localhost:5432` |
 
-Create a root `.env` from `.env.example` if you want to override these compose-level values. The `minio-init` service creates the `LAKEHOUSE_BUCKET` bucket automatically.
-
-Dagster's instance storage is configured in `orchestration/dagster.yaml` and uses the `backend_storage` service via `dagster-postgres`.
-
-Dagster containers receive these lakehouse environment variables:
+### Stopping and resetting
 
 ```bash
-AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
-AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
-AWS_ENDPOINT_URL=http://minio:9000
-AWS_ENDPOINT_URL_S3=http://minio:9000
-AWS_S3_FORCE_PATH_STYLE=true
-S3_ENDPOINT_URL=http://minio:9000
-LAKEHOUSE_BUCKET=${LAKEHOUSE_BUCKET}
-DAGSTER_POSTGRES_HOST=backend_storage
-DAGSTER_POSTGRES_PORT=5432
-DAGSTER_POSTGRES_USER=${DAGSTER_POSTGRES_USER}
-DAGSTER_POSTGRES_PASSWORD=${DAGSTER_POSTGRES_PASSWORD}
-DAGSTER_POSTGRES_DB=${DAGSTER_POSTGRES_DB}
-```
-
-This compose file uses legacy-compatible `env_file` syntax. Because legacy Compose cannot mark env files as optional, it defaults to checked-in example files:
-
-- `DAGSTER_SHARED_ENV_FILE`, default `.env.example`
-- `DAGSTER_ORCHESTRATION_ENV_FILE`, default `./orchestration/.env.example`
-
-To load real local env files, set these in your shell or root `.env`:
-
-```bash
-DAGSTER_SHARED_ENV_FILE=.env
-DAGSTER_ORCHESTRATION_ENV_FILE=./orchestration/.env
-```
-
-Values listed directly under `environment:` in `docker-compose.yml` override values from `env_file`.
-
-The compose file defines healthchecks for `backend_storage`, `minio`, `dagster-webserver`, `dagster-daemon`, and the Dagster gRPC code location. Because this is legacy Compose style, `depends_on` controls startup order only; the Dagster image also waits for PostgreSQL and MinIO ports before launching.
-
-Stop the stack:
-
-```bash
-docker-compose down
-# or
+# Stop containers
 docker compose down
+
+# Wipe all runtime data (Dagster storage, MinIO objects, PostgreSQL)
+docker compose down
+rm -rf ./data/volume/
 ```
 
-Delete local Dagster, PostgreSQL, and MinIO containers:
+---
+
+## Contributing
+
+### Development setup
+
+The `orchestration` package uses `uv` for dependency management.
 
 ```bash
-docker-compose down -v
-# or
-docker compose down -v
+cd orchestration
+uv sync --group dev
 ```
 
-Because this stack uses bind mounts under `./data/volume/`, `down -v` does not delete runtime data. Remove `./data/volume/` manually when you want a clean local state.
+For the dbt project:
+
+```bash
+cd dbt_bsdp
+uv sync
+```
+
+### Running dbt locally
+
+```bash
+cd dbt_bsdp
+.venv/Scripts/dbt parse          # validate manifest
+.venv/Scripts/dbt build --select staging    # run staging layer
+.venv/Scripts/dbt build --select common_bs  # run gold layer
+```
+
+Set `MINIO_HOST=localhost` and `MINIO_PORT=9000` in your shell (or `.env`) when running dbt against a locally exposed MinIO instance.
+
+### Adding a new dbt model
+
+1. Create the SQL file in the appropriate layer folder (`staging/` or `common_bs/`).
+2. Add the model config block with `materialized='external'`, `location`, and `format='parquet'`.
+3. Document all columns in the layer's `schema.yml`.
+4. Run `dbt parse` to validate, then `dbt build --select <model_name>+` to test.
+
+### Adding a new Dagster asset
+
+Place the asset definition inside `orchestration/src/orchestration/defs/`. The `load_from_defs_folder` call in `definitions.py` auto-discovers everything in that directory.
+
+### Code style
+
+- dbt SQL: CTEs over subqueries, `{{ ref() }}` and `{{ source() }}` exclusively — no hardcoded table names.
+- Dagster: typed resources via `ConfigurableResource`; assets consume resources via function arguments.
+- Commits: concise imperative subject line, reference the affected layer in the body.
