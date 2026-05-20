@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Overview — BikeStore Analytics</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f3ff; color: #2d3748; }
+
+.header { background: linear-gradient(135deg, #1e1048 0%, #6d28d9 100%); color: white; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-logo { width: 38px; height: 38px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.header-title { font-size: 18px; font-weight: 700; }
+.header-subtitle { font-size: 12px; opacity: 0.75; margin-top: 1px; }
+.header-right { display: flex; gap: 10px; }
+.badge { background: rgba(255,255,255,0.18); padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+
+.filters { background: white; padding: 10px 28px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #ede9fe; flex-wrap: wrap; }
+.filter-label { font-size: 12px; color: #718096; font-weight: 600; }
+.fbtn { border: 1px solid #ddd6fe; border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #4a5568; background: white; cursor: pointer; }
+.fbtn.active { border-color: #7c3aed; background: #f5f3ff; color: #5b21b6; font-weight: 500; }
+.fsep { width: 1px; height: 20px; background: #ede9fe; }
+
+.content { padding: 20px 28px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+.kpi { background: white; border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(109,40,217,0.08); border-left: 4px solid #e2e8f0; }
+.kpi.blue   { border-left-color: #6d28d9; }
+.kpi.green  { border-left-color: #7c3aed; }
+.kpi.purple { border-left-color: #8b5cf6; }
+.kpi.orange { border-left-color: #a78bfa; }
+.kpi.teal   { border-left-color: #c4b5fd; }
+.kpi-lbl { font-size: 10px; color: #a0aec0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+.kpi-val { font-size: 26px; font-weight: 700; color: #2d3748; margin: 6px 0 4px; line-height: 1; }
+.kpi-delta { font-size: 12px; }
+.up   { color: #38a169; }
+.down { color: #e53e3e; }
+.mute { color: #a0aec0; }
+
+.row { display: grid; gap: 14px; margin-bottom: 14px; }
+.r2-1 { grid-template-columns: 2fr 1fr; }
+.r1-1 { grid-template-columns: 1fr 1fr; }
+.r3-2 { grid-template-columns: 3fr 2fr; }
+
+.card { background: white; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(109,40,217,0.08); }
+.card-hd { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.card-title { font-size: 13px; font-weight: 600; color: #2d3748; }
+.card-sub { font-size: 11px; color: #a0aec0; margin-top: 2px; font-family: 'Courier New', monospace; }
+.cbadge { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f5f3ff; color: #5b21b6; font-weight: 500; white-space: nowrap; }
+
+.hbar-list { display: flex; flex-direction: column; gap: 10px; }
+.hbar-item { display: flex; align-items: center; gap: 10px; }
+.hbar-lbl { font-size: 12px; color: #4a5568; width: 140px; flex-shrink: 0; text-align: right; }
+.hbar-track { flex: 1; background: #f5f3ff; border-radius: 4px; height: 24px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-right: 8px; justify-content: flex-end; }
+.hbar-val { font-size: 11px; font-weight: 600; color: white; }
+
+.donut-wrap { display: flex; align-items: center; gap: 20px; }
+.donut { width: 150px; height: 150px; border-radius: 50%; position: relative; flex-shrink: 0; }
+.donut-hole { position: absolute; top: 32px; left: 32px; width: 86px; height: 86px; border-radius: 50%; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-cv { font-size: 17px; font-weight: 700; color: #2d3748; }
+.donut-cl { font-size: 10px; color: #a0aec0; margin-top: 2px; }
+.legend { display: flex; flex-direction: column; gap: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-name { color: #4a5568; flex: 1; }
+.legend-pct { color: #2d3748; font-weight: 600; width: 30px; text-align: right; }
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #a0aec0; text-align: left; padding: 0 8px 10px; border-bottom: 1px solid #ede9fe; }
+.tbl th.r { text-align: right; }
+.tbl td { font-size: 12px; color: #4a5568; padding: 7px 8px; border-bottom: 1px solid #f5f3ff; }
+.tbl td.r { text-align: right; font-weight: 600; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f5f3ff; }
+.rank { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #ede9fe; font-size: 10px; font-weight: 700; color: #5b21b6; }
+.rank.gold { background: #fef3c7; color: #92400e; }
+.sbadge { font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+.sbadge.completed  { background: #c6f6d5; color: #276749; }
+.sbadge.pending    { background: #ede9fe; color: #5b21b6; }
+.sbadge.processing { background: #fefcbf; color: #744210; }
+.sbadge.rejected   { background: #fed7d7; color: #822727; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">🚲</div>
+    <div>
+      <div class="header-title">BikeStore Analytics</div>
+      <div class="header-subtitle">Sales Overview Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="badge">📅 FY 2018</span>
+    <span class="badge">🔄 Refreshed today</span>
+  </div>
+</header>
+
+<!-- FILTERS -->
+<div class="filters">
+  <span class="filter-label">Filters:</span>
+  <button class="fbtn active">📅 2018 — Full Year ▾</button>
+  <button class="fbtn">🏪 All Stores ▾</button>
+  <button class="fbtn">🏷 All Categories ▾</button>
+  <button class="fbtn">⚙ All Brands ▾</button>
+  <button class="fbtn">📦 All Statuses ▾</button>
+  <div class="fsep"></div>
+  <button class="fbtn">↺ Reset</button>
+</div>
+
+<div class="content">
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi blue">
+      <div class="kpi-lbl">Total Revenue</div>
+      <div class="kpi-val">$2.13M</div>
+      <div class="kpi-delta up">▲ 12.4% vs prior year</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-lbl">Total Orders</div>
+      <div class="kpi-val">1,615</div>
+      <div class="kpi-delta up">▲ 8.7% vs prior year</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-lbl">Avg Order Value</div>
+      <div class="kpi-val">$1,319</div>
+      <div class="kpi-delta up">▲ 3.4% vs prior year</div>
+    </div>
+    <div class="kpi orange">
+      <div class="kpi-lbl">Units Sold</div>
+      <div class="kpi-val">7,078</div>
+      <div class="kpi-delta up">▲ 9.1% vs prior year</div>
+    </div>
+    <div class="kpi teal">
+      <div class="kpi-lbl">Fulfillment Rate</div>
+      <div class="kpi-val">91.2%</div>
+      <div class="kpi-delta down">▼ 1.3% vs prior year</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Revenue Trend + Order Status -->
+  <div class="row r2-1">
+
+    <!-- Revenue Trend Line Chart -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Revenue Trend — Monthly</div>
+          <div class="card-sub">SUM(line_total) GROUP BY year_number, month_number — join dim_date ON dim_date_sk</div>
+        </div>
+        <span class="cbadge">fct_sales + dim_date</span>
+      </div>
+      <svg viewBox="0 0 560 190" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+        <line x1="44" y1="20" x2="44" y2="158" stroke="#ede9fe" stroke-width="1"/>
+        <line x1="44" y1="158" x2="540" y2="158" stroke="#ede9fe" stroke-width="1"/>
+        <line x1="44" y1="20"  x2="540" y2="20"  stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <line x1="44" y1="58"  x2="540" y2="58"  stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <line x1="44" y1="96"  x2="540" y2="96"  stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <line x1="44" y1="130" x2="540" y2="130" stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <text x="40" y="23"  text-anchor="end" font-size="9" fill="#a0aec0">$300K</text>
+        <text x="40" y="61"  text-anchor="end" font-size="9" fill="#a0aec0">$225K</text>
+        <text x="40" y="99"  text-anchor="end" font-size="9" fill="#a0aec0">$150K</text>
+        <text x="40" y="133" text-anchor="end" font-size="9" fill="#a0aec0">$75K</text>
+        <path d="M 80,138 L 120,153 L 160,124 L 200,100 L 240,112 L 280,84 L 320,66 L 360,92 L 400,106 L 440,76 L 480,44 L 520,20 L 520,158 L 80,158 Z" fill="#7c3aed" opacity="0.09"/>
+        <polyline points="80,138 120,153 160,124 200,100 240,112 280,84 320,66 360,92 400,106 440,76 480,44 520,20"
+          fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="80"  cy="138" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="120" cy="153" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="160" cy="124" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="200" cy="100" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="240" cy="112" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="280" cy="84"  r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="320" cy="66"  r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="360" cy="92"  r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="400" cy="106" r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="440" cy="76"  r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="480" cy="44"  r="3.5" fill="white" stroke="#7c3aed" stroke-width="2"/>
+        <circle cx="520" cy="20"  r="5"   fill="#7c3aed" stroke="#7c3aed" stroke-width="2"/>
+        <rect x="486" y="3" width="54" height="22" rx="4" fill="#6d28d9"/>
+        <text x="513" y="18" text-anchor="middle" font-size="10" fill="white" font-weight="bold">$285K</text>
+        <text x="80"  y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Jan</text>
+        <text x="120" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Feb</text>
+        <text x="160" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Mar</text>
+        <text x="200" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Apr</text>
+        <text x="240" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">May</text>
+        <text x="280" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Jun</text>
+        <text x="320" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Jul</text>
+        <text x="360" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Aug</text>
+        <text x="400" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Sep</text>
+        <text x="440" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Oct</text>
+        <text x="480" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Nov</text>
+        <text x="520" y="173" text-anchor="middle" font-size="9" fill="#a0aec0">Dec</text>
+      </svg>
+    </div>
+
+    <!-- Order Status Donut -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Order Status Distribution</div>
+          <div class="card-sub">COUNT(DISTINCT order_id) GROUP BY order_status_label</div>
+        </div>
+      </div>
+      <div class="donut-wrap" style="flex-direction:column;align-items:center;gap:16px;">
+        <div class="donut" style="background:conic-gradient(#4c1d95 0% 55%,#7c3aed 55% 75%,#a78bfa 75% 90%,#ddd6fe 90% 100%);">
+          <div class="donut-hole">
+            <div class="donut-cv">1,615</div>
+            <div class="donut-cl">Total Orders</div>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#4c1d95"></div><span class="legend-name">Completed</span><span class="legend-pct">55%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div><span class="legend-name">Pending</span><span class="legend-pct">20%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div><span class="legend-name">Rejected</span><span class="legend-pct">15%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ddd6fe"></div><span class="legend-name">Processing</span><span class="legend-pct">10%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Revenue by Store + Revenue by Category -->
+  <div class="row r1-1">
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Revenue by Store</div>
+          <div class="card-sub">SUM(line_total) GROUP BY store_name — join dim_store ON dim_store_sk</div>
+        </div>
+        <span class="cbadge">fct_sales + dim_store</span>
+      </div>
+      <div class="hbar-list">
+        <div class="hbar-item">
+          <div class="hbar-lbl">Baldwin Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:85%;background:#4c1d95"><span class="hbar-val">$840K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Santa Cruz Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:71%;background:#7c3aed"><span class="hbar-val">$710K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Rowlett Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:58%;background:#a78bfa"><span class="hbar-val">$580K</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Revenue by Product Category</div>
+          <div class="card-sub">SUM(line_total) GROUP BY category_name — join dim_product ON dim_product_sk</div>
+        </div>
+        <span class="cbadge">+ dim_product</span>
+      </div>
+      <div class="hbar-list">
+        <div class="hbar-item">
+          <div class="hbar-lbl">Mountain Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:90%;background:#4c1d95"><span class="hbar-val">$780K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Road Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:60%;background:#6d28d9"><span class="hbar-val">$520K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Cyclocross Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:39%;background:#7c3aed"><span class="hbar-val">$340K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Comfort Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:24%;background:#8b5cf6"><span class="hbar-val">$210K</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Electric Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:15%;background:#c4b5fd"><span class="hbar-val" style="color:#4c1d95">$130K</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Top Products Table + Monthly Summary -->
+  <div class="row r3-2">
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Top 10 Products by Revenue</div>
+          <div class="card-sub">SUM(line_total), SUM(quantity) GROUP BY product_name — ORDER BY revenue DESC LIMIT 10</div>
+        </div>
+        <span class="cbadge">fct_sales + dim_product</span>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Brand</th>
+            <th>Category</th>
+            <th class="r">Units</th>
+            <th class="r">Revenue</th>
+            <th class="r">Avg Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="rank gold">1</span></td><td>Trek Slash 8 27.5</td><td>Trek</td><td>Mountain Bikes</td><td class="r">48</td><td class="r">$143K</td><td class="r">$2,979</td></tr>
+          <tr><td><span class="rank gold">2</span></td><td>Surly Ice Cream Truck</td><td>Surly</td><td>Cyclocross</td><td class="r">36</td><td class="r">$118K</td><td class="r">$3,278</td></tr>
+          <tr><td><span class="rank gold">3</span></td><td>Trek Marlin 5</td><td>Trek</td><td>Mountain Bikes</td><td class="r">97</td><td class="r">$98K</td><td class="r">$1,010</td></tr>
+          <tr><td><span class="rank">4</span></td><td>Electra Cruiser 1</td><td>Electra</td><td>Cruisers Bicycles</td><td class="r">112</td><td class="r">$87K</td><td class="r">$776</td></tr>
+          <tr><td><span class="rank">5</span></td><td>Haro SR 1.1 - 2018</td><td>Haro</td><td>Road Bikes</td><td class="r">64</td><td class="r">$76K</td><td class="r">$1,188</td></tr>
+          <tr><td><span class="rank">6</span></td><td>Trek Boone 7 Disc</td><td>Trek</td><td>Cyclocross</td><td class="r">29</td><td class="r">$65K</td><td class="r">$2,241</td></tr>
+          <tr><td><span class="rank">7</span></td><td>Sun Bicycles ElectroLite</td><td>Sun Bicycles</td><td>Electric Bikes</td><td class="r">41</td><td class="r">$58K</td><td class="r">$1,415</td></tr>
+          <tr><td><span class="rank">8</span></td><td>Trek Conduit+</td><td>Trek</td><td>Electric Bikes</td><td class="r">32</td><td class="r">$52K</td><td class="r">$1,625</td></tr>
+          <tr><td><span class="rank">9</span></td><td>Electra Townie Original 21D</td><td>Electra</td><td>Cruisers</td><td class="r">87</td><td class="r">$48K</td><td class="r">$552</td></tr>
+          <tr><td><span class="rank">10</span></td><td>Trek Domane AL 3</td><td>Trek</td><td>Road Bikes</td><td class="r">55</td><td class="r">$42K</td><td class="r">$763</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Monthly Summary</div>
+          <div class="card-sub">GROUP BY month_number, month_name ORDER BY month_number ASC</div>
+        </div>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr><th>Month</th><th class="r">Revenue</th><th class="r">Orders</th><th class="r">Avg Discount</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>January</td><td class="r">$120K</td><td class="r">125</td><td class="r">8.2%</td></tr>
+          <tr><td>February</td><td class="r">$95K</td><td class="r">98</td><td class="r">7.9%</td></tr>
+          <tr><td>March</td><td class="r">$140K</td><td class="r">145</td><td class="r">8.5%</td></tr>
+          <tr><td>April</td><td class="r">$178K</td><td class="r">187</td><td class="r">9.1%</td></tr>
+          <tr><td>May</td><td class="r">$162K</td><td class="r">170</td><td class="r">9.4%</td></tr>
+          <tr><td>June</td><td class="r">$198K</td><td class="r">205</td><td class="r">10.2%</td></tr>
+          <tr><td>July</td><td class="r">$221K</td><td class="r">230</td><td class="r">11.0%</td></tr>
+          <tr><td>August</td><td class="r">$189K</td><td class="r">196</td><td class="r">10.8%</td></tr>
+          <tr><td>September</td><td class="r">$174K</td><td class="r">181</td><td class="r">9.7%</td></tr>
+          <tr><td>October</td><td class="r">$209K</td><td class="r">217</td><td class="r">9.3%</td></tr>
+          <tr><td>November</td><td class="r">$248K</td><td class="r">258</td><td class="r">12.1%</td></tr>
+          <tr><td>December</td><td class="r">$285K</td><td class="r">296</td><td class="r">13.4%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

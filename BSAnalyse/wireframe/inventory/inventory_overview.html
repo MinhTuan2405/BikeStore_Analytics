@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Status — BikeStore Analytics</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f3ff; color: #2d3748; }
+
+.header { background: linear-gradient(135deg, #1e1048 0%, #6d28d9 100%); color: white; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-logo { width: 38px; height: 38px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.header-title { font-size: 18px; font-weight: 700; }
+.header-subtitle { font-size: 12px; opacity: 0.75; margin-top: 1px; }
+.header-right { display: flex; gap: 10px; }
+.badge { background: rgba(255,255,255,0.18); padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+.badge.warn { background: rgba(252,211,77,0.3); }
+
+.filters { background: white; padding: 10px 28px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #ede9fe; flex-wrap: wrap; }
+.filter-label { font-size: 12px; color: #718096; font-weight: 600; }
+.fbtn { border: 1px solid #ddd6fe; border-radius: 6px; padding: 5px 12px; font-size: 12px; color: #4a5568; background: white; cursor: pointer; }
+.fbtn.active { border-color: #7c3aed; background: #f5f3ff; color: #5b21b6; font-weight: 500; }
+.fbtn.alert  { border-color: #e53e3e; background: #fff5f5; color: #c53030; font-weight: 600; }
+.fsep { width: 1px; height: 20px; background: #ede9fe; }
+
+.content { padding: 20px 28px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.kpi { background: white; border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(109,40,217,0.08); border-left: 4px solid #e2e8f0; }
+.kpi.green { border-left-color: #6d28d9; }
+.kpi.teal  { border-left-color: #8b5cf6; }
+.kpi.red   { border-left-color: #e53e3e; }
+.kpi.blue  { border-left-color: #c4b5fd; }
+.kpi-lbl { font-size: 10px; color: #a0aec0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+.kpi-val { font-size: 26px; font-weight: 700; color: #2d3748; margin: 6px 0 4px; line-height: 1; }
+.kpi-delta { font-size: 12px; }
+.up   { color: #38a169; }
+.down { color: #e53e3e; }
+.mute { color: #a0aec0; }
+
+.row { display: grid; gap: 14px; margin-bottom: 14px; }
+.r1-1 { grid-template-columns: 1fr 1fr; }
+.r3-2 { grid-template-columns: 3fr 2fr; }
+
+.card { background: white; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(109,40,217,0.08); }
+.card-hd { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.card-title { font-size: 13px; font-weight: 600; color: #2d3748; }
+.card-sub { font-size: 11px; color: #a0aec0; margin-top: 2px; font-family: 'Courier New', monospace; }
+.cbadge { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f5f3ff; color: #5b21b6; font-weight: 500; white-space: nowrap; }
+.cbadge.red { background: #fff5f5; color: #c53030; }
+
+.vbar-group { display: flex; align-items: flex-end; gap: 24px; height: 160px; padding-bottom: 0; justify-content: center; }
+.vbar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; max-width: 100px; justify-content: flex-end; }
+.vbar-amount { font-size: 11px; font-weight: 700; color: #5b21b6; margin-bottom: 2px; }
+.vbar-bar { width: 100%; border-radius: 5px 5px 0 0; }
+.vbar-name { font-size: 10px; color: #718096; text-align: center; margin-top: 6px; line-height: 1.3; }
+
+.hbar-list { display: flex; flex-direction: column; gap: 10px; }
+.hbar-item { display: flex; align-items: center; gap: 10px; }
+.hbar-lbl { font-size: 12px; color: #4a5568; width: 150px; flex-shrink: 0; text-align: right; }
+.hbar-track { flex: 1; background: #f5f3ff; border-radius: 4px; height: 24px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-right: 8px; justify-content: flex-end; }
+.hbar-val { font-size: 11px; font-weight: 600; color: white; }
+
+.donut-wrap { display: flex; align-items: center; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.donut { width: 150px; height: 150px; border-radius: 50%; position: relative; flex-shrink: 0; }
+.donut-hole { position: absolute; top: 32px; left: 32px; width: 86px; height: 86px; border-radius: 50%; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-cv { font-size: 16px; font-weight: 700; color: #2d3748; }
+.donut-cl { font-size: 10px; color: #a0aec0; margin-top: 2px; text-align: center; }
+.legend { display: flex; flex-direction: column; gap: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-name { color: #4a5568; flex: 1; }
+.legend-pct { color: #2d3748; font-weight: 600; width: 30px; text-align: right; }
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #a0aec0; text-align: left; padding: 0 8px 10px; border-bottom: 1px solid #ede9fe; }
+.tbl th.r { text-align: right; }
+.tbl td { font-size: 12px; color: #4a5568; padding: 7px 8px; border-bottom: 1px solid #f5f3ff; }
+.tbl td.r { text-align: right; font-weight: 600; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f5f3ff; }
+.alert-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.critical { color: #e53e3e; font-weight: 700; }
+.warning  { color: #dd6b20; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">📦</div>
+    <div>
+      <div class="header-title">BikeStore Analytics</div>
+      <div class="header-subtitle">Inventory Status Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="badge">📅 Snapshot: 2018-12-31</span>
+    <span class="badge warn">⚠ 14 Low Stock Alerts</span>
+  </div>
+</header>
+
+<!-- FILTERS -->
+<div class="filters">
+  <span class="filter-label">Filters:</span>
+  <button class="fbtn active">📅 Latest Snapshot ▾</button>
+  <button class="fbtn">🏪 All Stores ▾</button>
+  <button class="fbtn">🏷 All Categories ▾</button>
+  <button class="fbtn">⚙ All Brands ▾</button>
+  <button class="fbtn alert">⚠ Threshold: qty ≤ 5 ▾</button>
+  <div class="fsep"></div>
+  <button class="fbtn">↺ Reset</button>
+</div>
+
+<div class="content">
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi green">
+      <div class="kpi-lbl">Total Units on Hand</div>
+      <div class="kpi-val">13,482</div>
+      <div class="kpi-delta down">▼ 7.2% vs prior snapshot</div>
+    </div>
+    <div class="kpi teal">
+      <div class="kpi-lbl">Total Inventory Value</div>
+      <div class="kpi-val">$4.28M</div>
+      <div class="kpi-delta down">▼ 5.4% vs prior snapshot</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-lbl">Low Stock Alerts</div>
+      <div class="kpi-val">14</div>
+      <div class="kpi-delta down">▲ 3 more vs prior snapshot</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-lbl">Stores Covered</div>
+      <div class="kpi-val">3</div>
+      <div class="kpi-delta mute">— No change</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Inventory Value by Store + Inventory Trend -->
+  <div class="row r1-1">
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Inventory Value by Store</div>
+          <div class="card-sub">SUM(inventory_value) GROUP BY store_name — join dim_store ON dim_store_sk</div>
+        </div>
+        <span class="cbadge">fct_inventory + dim_store</span>
+      </div>
+      <div class="vbar-group">
+        <div class="vbar-col">
+          <div class="vbar-amount">$1.85M</div>
+          <div class="vbar-bar" style="height:130px;background:#4c1d95;"></div>
+          <div class="vbar-name">Baldwin Bikes</div>
+        </div>
+        <div class="vbar-col">
+          <div class="vbar-amount">$1.42M</div>
+          <div class="vbar-bar" style="height:100px;background:#7c3aed;"></div>
+          <div class="vbar-name">Santa Cruz Bikes</div>
+        </div>
+        <div class="vbar-col">
+          <div class="vbar-amount">$1.01M</div>
+          <div class="vbar-bar" style="height:72px;background:#a78bfa;"></div>
+          <div class="vbar-name">Rowlett Bikes</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Inventory Trend</div>
+          <div class="card-sub">SUM(quantity) GROUP BY snapshot_date — join dim_date ON dim_date_sk</div>
+        </div>
+        <span class="cbadge">fct_inventory + dim_date</span>
+      </div>
+      <svg viewBox="0 0 420 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+        <line x1="50" y1="20" x2="50" y2="165" stroke="#ede9fe" stroke-width="1"/>
+        <line x1="50" y1="165" x2="400" y2="165" stroke="#ede9fe" stroke-width="1"/>
+        <line x1="50" y1="20"  x2="400" y2="20"  stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <line x1="50" y1="70"  x2="400" y2="70"  stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <line x1="50" y1="115" x2="400" y2="115" stroke="#ede9fe" stroke-width="0.5" stroke-dasharray="4,4"/>
+        <text x="46" y="23"  text-anchor="end" font-size="9" fill="#a0aec0">14,500</text>
+        <text x="46" y="73"  text-anchor="end" font-size="9" fill="#a0aec0">12,500</text>
+        <text x="46" y="118" text-anchor="end" font-size="9" fill="#a0aec0">10,500</text>
+        <path d="M 100,35 L 200,90 L 300,120 L 400,165 L 400,165 L 300,165 L 200,165 L 100,165 Z" fill="#7c3aed" opacity="0.10"/>
+        <polyline points="100,35 200,90 300,120 400,165"
+          fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="100" cy="35"  r="5" fill="#7c3aed"/>
+        <rect x="68" y="16" width="62" height="20" rx="4" fill="#6d28d9"/>
+        <text x="99" y="30" text-anchor="middle" font-size="9" fill="white" font-weight="bold">14,520 units</text>
+        <circle cx="200" cy="90"  r="5" fill="#7c3aed"/>
+        <circle cx="300" cy="120" r="5" fill="#7c3aed"/>
+        <circle cx="400" cy="165" r="5" fill="#7c3aed"/>
+        <rect x="348" y="148" width="66" height="20" rx="4" fill="#4c1d95"/>
+        <text x="381" y="162" text-anchor="middle" font-size="9" fill="white" font-weight="bold">13,482 units</text>
+        <text x="100" y="182" text-anchor="middle" font-size="9" fill="#a0aec0">Mar 2018</text>
+        <text x="200" y="182" text-anchor="middle" font-size="9" fill="#a0aec0">Jun 2018</text>
+        <text x="300" y="182" text-anchor="middle" font-size="9" fill="#a0aec0">Sep 2018</text>
+        <text x="400" y="182" text-anchor="middle" font-size="9" fill="#a0aec0">Dec 2018</text>
+        <text x="210" y="140" font-size="9" fill="#6d28d9" font-weight="600">↓ Holiday depletion trend</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ROW 2: Units by Category + Inventory Value by Brand -->
+  <div class="row r1-1">
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Units on Hand by Category</div>
+          <div class="card-sub">SUM(quantity) GROUP BY category_name — join dim_product ON dim_product_sk</div>
+        </div>
+        <span class="cbadge">fct_inventory + dim_product</span>
+      </div>
+      <div class="hbar-list">
+        <div class="hbar-item">
+          <div class="hbar-lbl">Mountain Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:88%;background:#1e1048"><span class="hbar-val">3,820</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Road Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:65%;background:#4c1d95"><span class="hbar-val">2,810</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Cruisers Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:52%;background:#6d28d9"><span class="hbar-val">2,248</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Cyclocross Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:38%;background:#7c3aed"><span class="hbar-val">1,644</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Electric Bikes</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:28%;background:#8b5cf6"><span class="hbar-val">1,212</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Comfort Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:20%;background:#a78bfa"><span class="hbar-val">865</span></div></div>
+        </div>
+        <div class="hbar-item">
+          <div class="hbar-lbl">Children Bicycles</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:14%;background:#c4b5fd"><span class="hbar-val" style="color:#4c1d95">620</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">Inventory Value by Brand</div>
+          <div class="card-sub">SUM(inventory_value) GROUP BY brand_name — ORDER BY value DESC</div>
+        </div>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut" style="background:conic-gradient(#1e1048 0% 38%,#4c1d95 38% 58%,#6d28d9 58% 72%,#8b5cf6 72% 82%,#a78bfa 82% 90%,#ddd6fe 90% 100%);">
+          <div class="donut-hole">
+            <div class="donut-cv">$4.28M</div>
+            <div class="donut-cl">Inventory<br>Value</div>
+          </div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#1e1048"></div><span class="legend-name">Trek</span><span class="legend-pct">38%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#4c1d95"></div><span class="legend-name">Electra</span><span class="legend-pct">20%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#6d28d9"></div><span class="legend-name">Surly</span><span class="legend-pct">14%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div><span class="legend-name">Sun Bicycles</span><span class="legend-pct">10%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div><span class="legend-name">Haro</span><span class="legend-pct">8%</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ddd6fe"></div><span class="legend-name">Others</span><span class="legend-pct">10%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Low Stock Alerts Table -->
+  <div class="card">
+    <div class="card-hd">
+      <div>
+        <div class="card-title">⚠ Low Stock Alerts — Restock Required</div>
+        <div class="card-sub">fct_inventory WHERE quantity &lt;= threshold — join dim_store, dim_product — ORDER BY quantity ASC</div>
+      </div>
+      <span class="cbadge red">14 Active Alerts</span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Alert</th>
+          <th>Store</th>
+          <th>Product</th>
+          <th>Brand</th>
+          <th>Category</th>
+          <th class="r">Units</th>
+          <th class="r">Unit Price</th>
+          <th class="r">Est. Value</th>
+          <th>Snapshot Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fff5f5;">
+          <td><span class="alert-dot" style="background:#e53e3e"></span>Critical</td>
+          <td>Baldwin Bikes</td><td>Trek Slash 8 27.5</td><td>Trek</td><td>Mountain Bikes</td>
+          <td class="r critical">1</td><td class="r">$2,979</td><td class="r">$2,979</td><td>2018-12-31</td>
+        </tr>
+        <tr style="background:#fff5f5;">
+          <td><span class="alert-dot" style="background:#e53e3e"></span>Critical</td>
+          <td>Rowlett Bikes</td><td>Surly Ice Cream Truck</td><td>Surly</td><td>Cyclocross</td>
+          <td class="r critical">2</td><td class="r">$3,278</td><td class="r">$6,556</td><td>2018-12-31</td>
+        </tr>
+        <tr>
+          <td><span class="alert-dot" style="background:#e53e3e"></span>Critical</td>
+          <td>Santa Cruz Bikes</td><td>Trek Boone 7 Disc</td><td>Trek</td><td>Cyclocross</td>
+          <td class="r critical">3</td><td class="r">$2,241</td><td class="r">$6,723</td><td>2018-12-31</td>
+        </tr>
+        <tr>
+          <td><span class="alert-dot" style="background:#dd6b20"></span>Warning</td>
+          <td>Baldwin Bikes</td><td>Sun Bicycles ElectroLite</td><td>Sun Bicycles</td><td>Electric Bikes</td>
+          <td class="r warning">4</td><td class="r">$1,415</td><td class="r">$5,660</td><td>2018-12-31</td>
+        </tr>
+        <tr>
+          <td><span class="alert-dot" style="background:#dd6b20"></span>Warning</td>
+          <td>Rowlett Bikes</td><td>Trek Conduit+</td><td>Trek</td><td>Electric Bikes</td>
+          <td class="r warning">5</td><td class="r">$1,625</td><td class="r">$8,125</td><td>2018-12-31</td>
+        </tr>
+        <tr>
+          <td colspan="9" style="text-align:center;padding:10px;color:#a0aec0;font-size:12px;background:#f5f3ff;">
+            … 9 more alerts — adjust threshold filter to see all
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>
