@@ -186,3 +186,253 @@ fct_sales
                                        also joins dim_staff again via manager_dim_staff_sk
                                        for manager hierarchy without recursion)
 ```
+
+---
+
+## DAX Reference
+
+### Calculated Tables
+
+```dax
+-- Empty holder table to keep all Performance measures organised in one place
+_Performance Measures = ROW("info", "Product & Staff measure table")
+```
+
+```dax
+-- Pre-aggregated staff leaderboard table for use in table/matrix visuals
+-- Refreshes with model; avoids slow row-context aggregation in a matrix
+Staff Leaderboard =
+    ADDCOLUMNS(
+        FILTER(
+            VALUES(dim_staff[full_name]),
+            dim_staff[is_active] = TRUE()
+                && dim_staff[staff_id] <> -1      -- exclude missing-member row
+        ),
+        "Revenue",         CALCULATE([Total Revenue]),
+        "Orders",          CALCULATE([Total Orders]),
+        "Avg Order Value", CALCULATE([Avg Order Value]),
+        "Store",           SELECTEDVALUE(dim_store[store_name]),
+        "Manager",         SELECTEDVALUE(dim_staff[manager_full_name])
+    )
+```
+
+```dax
+-- Pre-aggregated customer leaderboard (top customers by revenue)
+Customer Leaderboard =
+    TOPN(
+        10,
+        ADDCOLUMNS(
+            VALUES(dim_customer[full_name]),
+            "Revenue", CALCULATE([Total Revenue]),
+            "Orders",  CALCULATE([Total Orders]),
+            "City",    SELECTEDVALUE(dim_customer[city]),
+            "State",   SELECTEDVALUE(dim_customer[state])
+        ),
+        [Revenue],
+        DESC
+    )
+```
+
+---
+
+### Calculated Columns
+
+```dax
+-- fct_sales | Discount shown as a percentage for display (e.g. 10.5)
+Discount % = fct_sales[discount] * 100
+```
+
+```dax
+-- dim_product | Model year bucket for simplified grouping on bar charts
+Model Year Group =
+    SWITCH(
+        TRUE(),
+        dim_product[model_year] >= 2018, "2018 (Current)",
+        dim_product[model_year] = 2017,  "2017",
+        dim_product[model_year] = 2016,  "2016",
+        dim_product[model_year] <= 2015, "2015 & Earlier",
+        "Unknown"
+    )
+```
+
+```dax
+-- dim_staff | Hierarchy depth label — used to visually distinguish managers from staff
+Staff Level =
+    IF(
+        ISBLANK(dim_staff[manager_id]),
+        "Manager",
+        "Staff"
+    )
+```
+
+```dax
+-- fct_sales | Revenue tier for conditional formatting in the product table
+Revenue Band =
+    SWITCH(
+        TRUE(),
+        fct_sales[line_total] >= 3000, "Premium   (≥ $3K)",
+        fct_sales[line_total] >= 1000, "Mid-Range ($1K–$3K)",
+        fct_sales[line_total] >= 300,  "Entry     ($300–$1K)",
+        "Budget    (< $300)"
+    )
+```
+
+---
+
+### Measures
+
+#### KPI Cards
+
+```dax
+-- Reuses the shared Total Revenue measure defined in the Sales dashboard
+Total Revenue = SUM(fct_sales[line_total])
+```
+
+```dax
+Total Orders = DISTINCTCOUNT(fct_sales[order_id])
+```
+
+```dax
+Avg Order Value = DIVIDE([Total Revenue], [Total Orders], 0)
+```
+
+```dax
+Products Sold = DISTINCTCOUNT(fct_sales[dim_product_sk])
+```
+
+```dax
+-- Counts only currently active staff; excludes missing-member row (staff_id = -1)
+Active Staff Count =
+    CALCULATE(
+        COUNTROWS(dim_staff),
+        dim_staff[is_active] = TRUE(),
+        dim_staff[staff_id] <> -1
+    )
+```
+
+```dax
+Avg Discount % = AVERAGE(fct_sales[discount]) * 100
+```
+
+#### Dynamic Top-N Labels (KPI Cards)
+
+```dax
+-- Returns the name of the brand with the highest revenue in the current filter context
+Top Brand =
+    CALCULATE(
+        SELECTEDVALUE(dim_product[brand_name], "Multiple"),
+        TOPN(1, VALUES(dim_product[brand_name]), [Total Revenue], DESC)
+    )
+```
+
+```dax
+Top Brand Revenue =
+    CALCULATE(
+        [Total Revenue],
+        TOPN(1, VALUES(dim_product[brand_name]), [Total Revenue], DESC)
+    )
+```
+
+```dax
+-- Returns the full name of the staff member with the highest revenue
+Top Staff Name =
+    CALCULATE(
+        SELECTEDVALUE(dim_staff[full_name], "Multiple"),
+        TOPN(1, VALUES(dim_staff[full_name]), [Total Revenue], DESC)
+    )
+```
+
+```dax
+Top Staff Revenue =
+    CALCULATE(
+        [Total Revenue],
+        TOPN(1, VALUES(dim_staff[full_name]), [Total Revenue], DESC)
+    )
+```
+
+#### Revenue by Brand / Category (Chart Measures)
+
+```dax
+-- Revenue share of the selected brand vs. all brands (for donut / bar %)
+Brand Revenue Share % =
+    DIVIDE(
+        [Total Revenue],
+        CALCULATE([Total Revenue], ALL(dim_product[brand_name])),
+        0
+    ) * 100
+```
+
+```dax
+-- Revenue share of the selected category vs. all categories
+Category Revenue Share % =
+    DIVIDE(
+        [Total Revenue],
+        CALCULATE([Total Revenue], ALL(dim_product[category_name])),
+        0
+    ) * 100
+```
+
+```dax
+-- Rank of the current brand by revenue; used for sorting in bar chart visuals
+Brand Revenue Rank =
+    RANKX(
+        ALLSELECTED(dim_product[brand_name]),
+        [Total Revenue],
+        ,
+        DESC,
+        DENSE
+    )
+```
+
+#### Staff Leaderboard Measures
+
+```dax
+-- Revenue for the staff member in the current row context
+Staff Revenue =
+    CALCULATE(
+        [Total Revenue],
+        ALLEXCEPT(dim_staff, dim_staff[full_name])
+    )
+```
+
+```dax
+-- Order count for the staff member in the current row context
+Staff Order Count =
+    CALCULATE(
+        [Total Orders],
+        ALLEXCEPT(dim_staff, dim_staff[full_name])
+    )
+```
+
+```dax
+-- Rank of the staff member by revenue within the current store filter
+Staff Revenue Rank =
+    RANKX(
+        ALLSELECTED(dim_staff[full_name]),
+        [Total Revenue],
+        ,
+        DESC,
+        DENSE
+    )
+```
+
+#### Discount Analysis
+
+```dax
+-- Avg discount % for the selected category; drives the horizontal bar chart
+Category Avg Discount % =
+    CALCULATE(
+        AVERAGE(fct_sales[discount]),
+        ALLEXCEPT(dim_product, dim_product[category_name])
+    ) * 100
+```
+
+```dax
+-- YoY change in avg discount rate to detect if discounting is increasing
+Discount Rate YoY Change pp =
+    [Avg Discount %]
+    - CALCULATE(
+        [Avg Discount %],
+        SAMEPERIODLASTYEAR(dim_date[date_day])
+    )
+```

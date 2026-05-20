@@ -176,3 +176,165 @@ fct_inventory
   ├── dim_store    ON dim_store_sk
   └── dim_product  ON dim_product_sk  (includes brand + category + current list_price)
 ```
+
+---
+
+## DAX Reference
+
+### Calculated Tables
+
+```dax
+-- Empty holder table to keep all Inventory measures organised in one place
+_Inventory Measures = ROW("info", "Inventory measure table")
+```
+
+```dax
+-- What-If parameter: configurable low-stock alert threshold (1–20 units)
+-- Creates a slicer that drives the Low Stock Count and Alert Level measures
+Stock Threshold = GENERATESERIES(1, 20, 1)
+```
+
+```dax
+-- Snapshot date picker: distinct ingestion dates available in the fact table
+-- Use as a slicer to compare inventory across different snapshot dates
+Snapshot Dates =
+    DISTINCT(
+        SELECTCOLUMNS(
+            fct_inventory,
+            "Snapshot Date", fct_inventory[snapshot_date]
+        )
+    )
+```
+
+---
+
+### Calculated Columns
+
+```dax
+-- fct_inventory | Alert severity based on current quantity
+-- Drives conditional formatting in the Low Stock Alerts table
+Alert Level =
+    SWITCH(
+        TRUE(),
+        fct_inventory[quantity] <= 2, "Critical",
+        fct_inventory[quantity] <= 5, "Warning",
+        "OK"
+    )
+```
+
+```dax
+-- fct_inventory | Boolean flag for simple slicer / filter on low-stock rows
+Is Low Stock =
+    IF(fct_inventory[quantity] <= 5, TRUE(), FALSE())
+```
+
+```dax
+-- fct_inventory | Estimated days of supply: quantity / avg daily sales velocity
+-- Requires a [Avg Daily Units Sold] measure; shown here as a column template
+Days of Supply =
+    DIVIDE(
+        fct_inventory[quantity],
+        -- Replace with actual avg daily sales for the product
+        1
+    )
+```
+
+---
+
+### Measures
+
+#### KPI Cards
+
+```dax
+Total Units on Hand = SUM(fct_inventory[quantity])
+```
+
+```dax
+Total Inventory Value = SUM(fct_inventory[inventory_value])
+```
+
+```dax
+-- Driven by the Stock Threshold what-if parameter slicer
+Low Stock Count =
+    CALCULATE(
+        COUNTROWS(fct_inventory),
+        fct_inventory[quantity] <= SELECTEDVALUE('Stock Threshold'[Value], 5)
+    )
+```
+
+```dax
+Stores Covered = DISTINCTCOUNT(fct_inventory[store_id])
+```
+
+```dax
+Avg Units per Product =
+    DIVIDE([Total Units on Hand], DISTINCTCOUNT(fct_inventory[product_id]), 0)
+```
+
+#### Snapshot-over-Snapshot Comparison
+
+```dax
+-- Total units in the immediately preceding ingestion snapshot
+Prior Snapshot Units =
+    CALCULATE(
+        [Total Units on Hand],
+        FILTER(
+            ALL(dim_date),
+            dim_date[date_day] =
+                MAXX(
+                    FILTER(
+                        ALL(fct_inventory),
+                        fct_inventory[snapshot_date]
+                            < MIN(fct_inventory[snapshot_date])
+                    ),
+                    fct_inventory[snapshot_date]
+                )
+        )
+    )
+```
+
+```dax
+Units Change vs Prior Snapshot = [Total Units on Hand] - [Prior Snapshot Units]
+```
+
+```dax
+Units Change % =
+    DIVIDE(
+        [Units Change vs Prior Snapshot],
+        [Prior Snapshot Units],
+        0
+    ) * 100
+```
+
+#### Chart Measures
+
+```dax
+-- Inventory value share of the selected store vs. all stores
+Store Inventory Share % =
+    DIVIDE(
+        [Total Inventory Value],
+        CALCULATE([Total Inventory Value], ALL(dim_store)),
+        0
+    ) * 100
+```
+
+```dax
+-- Brand inventory value share for the donut chart
+Brand Inventory Share % =
+    DIVIDE(
+        [Total Inventory Value],
+        CALCULATE([Total Inventory Value], ALL(dim_product[brand_name])),
+        0
+    ) * 100
+```
+
+```dax
+-- Filters rows to only those below the threshold; used in the Alert table visual
+Low Stock Filter =
+    IF(
+        MIN(fct_inventory[quantity])
+            <= SELECTEDVALUE('Stock Threshold'[Value], 5),
+        1,
+        0
+    )
+```

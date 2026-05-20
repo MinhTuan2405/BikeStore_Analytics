@@ -180,3 +180,184 @@ fct_sales
   ├── dim_customer ON dim_customer_sk (nullable → missing-member row for guest orders)
   └── dim_staff    ON dim_staff_sk
 ```
+
+---
+
+## DAX Reference
+
+### Calculated Tables
+
+```dax
+-- Empty holder table to keep all Sales measures organised in one place
+_Sales Measures = ROW("info", "Sales measure table")
+```
+
+```dax
+-- Disconnected slicer for selecting the comparison period offset (1 = prior year, 2 = two years ago …)
+Period Offset = GENERATESERIES(1, 3, 1)
+```
+
+---
+
+### Calculated Columns
+
+```dax
+-- fct_sales | Human-readable discount shown as a percentage (e.g. 10.5)
+-- Avoids multiplying by 100 in every measure
+Discount % = fct_sales[discount] * 100
+```
+
+```dax
+-- fct_sales | Revenue tier for segmentation slicers and conditional formatting
+Revenue Band =
+    SWITCH(
+        TRUE(),
+        fct_sales[line_total] >= 3000, "Premium   (≥ $3K)",
+        fct_sales[line_total] >= 1000, "Mid-Range ($1K–$3K)",
+        fct_sales[line_total] >= 300,  "Entry     ($300–$1K)",
+        "Budget    (< $300)"
+    )
+```
+
+```dax
+-- dim_date | Short axis label used on the monthly trend chart (e.g. "Jan 2018")
+Month-Year Label =
+    FORMAT(dim_date[date_day], "MMM YYYY")
+```
+
+```dax
+-- dim_date | Quarter label for quarterly grouping (e.g. "Q1 2018")
+Quarter-Year Label =
+    "Q" & dim_date[quarter_number] & " " & dim_date[year_number]
+```
+
+---
+
+### Measures
+
+#### KPI Cards
+
+```dax
+Total Revenue = SUM(fct_sales[line_total])
+```
+
+```dax
+Total Orders = DISTINCTCOUNT(fct_sales[order_id])
+```
+
+```dax
+Avg Order Value = DIVIDE([Total Revenue], [Total Orders], 0)
+```
+
+```dax
+Units Sold = SUM(fct_sales[quantity])
+```
+
+```dax
+-- Percentage of orders that have a non-null shipped_date (is_shipped = TRUE)
+Fulfillment Rate % =
+    DIVIDE(
+        CALCULATE(
+            DISTINCTCOUNT(fct_sales[order_id]),
+            fct_sales[is_shipped] = TRUE()
+        ),
+        [Total Orders],
+        0
+    ) * 100
+```
+
+#### Year-over-Year Comparison
+
+```dax
+-- Revenue for the same period in the prior calendar year
+PY Revenue =
+    CALCULATE(
+        [Total Revenue],
+        SAMEPERIODLASTYEAR(dim_date[date_day])
+    )
+```
+
+```dax
+YoY Revenue Growth % =
+    DIVIDE(
+        [Total Revenue] - [PY Revenue],
+        [PY Revenue],
+        0
+    ) * 100
+```
+
+```dax
+-- Dynamic prior-period using the Period Offset slicer (N years back)
+Revenue N Years Ago =
+    CALCULATE(
+        [Total Revenue],
+        DATEADD(
+            dim_date[date_day],
+            -SELECTEDVALUE('Period Offset'[Value], 1),
+            YEAR
+        )
+    )
+```
+
+#### Order Status Distribution (Donut Chart)
+
+```dax
+Completed Orders =
+    CALCULATE(
+        DISTINCTCOUNT(fct_sales[order_id]),
+        fct_sales[order_status] = 4
+    )
+```
+
+```dax
+Pending Orders =
+    CALCULATE(
+        DISTINCTCOUNT(fct_sales[order_id]),
+        fct_sales[order_status] = 1
+    )
+```
+
+```dax
+Rejected Orders =
+    CALCULATE(
+        DISTINCTCOUNT(fct_sales[order_id]),
+        fct_sales[order_status] = 3
+    )
+```
+
+```dax
+Processing Orders =
+    CALCULATE(
+        DISTINCTCOUNT(fct_sales[order_id]),
+        fct_sales[order_status] = 2
+    )
+```
+
+#### Chart Measures
+
+```dax
+-- Average discount shown as a percentage for the Monthly Summary table
+Avg Discount % = AVERAGE(fct_sales[discount]) * 100
+```
+
+```dax
+-- Revenue share of the currently selected store / category / brand vs. all
+Revenue Share % =
+    DIVIDE(
+        [Total Revenue],
+        CALCULATE([Total Revenue], ALL(dim_store), ALL(dim_product)),
+        0
+    ) * 100
+```
+
+```dax
+-- Rank of selected entity by revenue (used in Top Products table visual)
+Revenue Rank =
+    RANKX(
+        ALLSELECTED(dim_product[product_name]),
+        [Total Revenue],
+        ,
+        DESC,
+        DENSE
+    )
+```
