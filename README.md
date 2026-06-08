@@ -2,9 +2,12 @@
 
 A local analytics engineering platform that ingests BikeStore transactional data from Supabase PostgreSQL, stores it in a MinIO lakehouse, and transforms it into a Kimball-style star schema using dbt + DuckDB — all orchestrated by Dagster and running entirely in Docker.
 
-## Author
+## Authors
 
-**mnhtndev** — tuannhm@hiptechvn.com
+| No. | Name | Student ID | Faculty | Email |
+|-----|------|------------|---------|-------|
+| 1 | Nguyễn Hà Minh Tuấn | 23521718 | CNTT | 23521718@gm.uit.edu.vn |
+| 2 | Mô Văn Tùng | 23521741 | CNTT | 23521741@gm.uit.edu.vn |
 
 ---
 
@@ -89,12 +92,20 @@ Source: Supabase PostgreSQL (external)
 
 ```
 BikeStoreAnalyst/
-├── docker-compose.yml          # Full local stack
-├── .env.example                # Shared environment variables
-├── dbt_bsdp/                   # dbt project (DuckDB adapter)
-│   ├── profiles.yml            # DuckDB + MinIO S3 connection
+├── README.md
+├── docker-compose.yml           # Full local stack
+├── .env.example                 # Shared environment variables
+├── BSAnalyse/                   # BI analysis and dashboard assets
+│   ├── analyse.md
+│   ├── requirements.md
+│   ├── PowerBI/                 # Power BI report and exported PDF
+│   ├── model/                   # BI model artifacts
+│   └── wireframe/               # Dashboard wireframes
+├── dbt_bsdp/                    # dbt project (DuckDB adapter)
 │   ├── dbt_project.yml
-│   ├── packages.yml            # dbt_utils
+│   ├── profiles.yml             # DuckDB + MinIO S3 connection
+│   ├── packages.yml             # dbt_utils
+│   ├── pyproject.toml
 │   ├── macros/
 │   │   ├── latest_full_load.sql   # Filters to max(ingestion_date)
 │   │   └── get_keyed_nulls.sql    # Null FK → missing-member SK
@@ -102,18 +113,37 @@ BikeStoreAnalyst/
 │       ├── source/             # Bronze — external MinIO declarations
 │       │   └── sources.yml
 │       ├── staging/            # Silver — 9 stg_supabase__* models
-│       └── common_bs/          # Gold  — 4 dims + dim_date + 2 facts
+│       │   ├── schema.yml
+│       │   └── stg_supabase__*.sql
+│       └── common_bs/          # Gold — 4 dims + dim_date + 2 facts
+│           ├── schema.yml
+│           ├── dim_*.sql
+│           └── fct_*.sql
 └── orchestration/              # Dagster project
     ├── Dockerfile
+    ├── docker-entrypoint.sh
     ├── pyproject.toml          # dagster, dagster-dbt, dbt-duckdb
     ├── workspace.yaml
     ├── dagster.yaml
-    └── src/orchestration/
+    ├── orchestration_tests/
+    │   └── test_assets.py
+    └── orchestration/
         ├── definitions.py
-        └── defs/
-            ├── assets/dbt/     # dbt_bsdp_assets (DbtCliResource)
-            └── resources/      # DbtProject, DbtCliResource
+        ├── assets/
+        │   ├── dbt/
+        │   │   └── dbt_bsdp_assets.py
+        │   └── supabase/
+        │       ├── supabase_sales.py
+        │       └── supabase_production.py
+        ├── resources/
+        │   ├── dbt_resource.py
+        │   └── supabase_resource.py
+        └── utils/
+            ├── s3_utils.py
+            └── utils.py
 ```
+
+Generated/runtime folders such as `data/`, `logs/`, `.venv/`, `target/`, `dbt_packages/`, `.pytest_cache/`, and `__pycache__/` are intentionally omitted.
 
 ### Technology stack
 
